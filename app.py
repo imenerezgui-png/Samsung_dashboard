@@ -566,6 +566,7 @@ CHART_LAYOUT = dict(
     font=dict(family="IBM Plex Sans, Segoe UI, sans-serif", color=INK),
     margin=dict(l=10, r=10, t=42, b=10),
     legend=dict(orientation="h", y=-0.18, font=dict(color=BLUE, weight="bold")),
+    barcornerradius=7,
 )
 
 AXIS_FONT = dict(color=BLUE, weight="bold")
