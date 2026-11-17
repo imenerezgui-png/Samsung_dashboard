@@ -232,6 +232,49 @@ div[data-testid="stPlotlyChart"] .plotly,
 div[data-testid="stPlotlyChart"] svg {{
     border-radius: 12px;
 }}
+.gauge-card {{
+    background: {CARD};
+    border-radius: 14px;
+    padding: 1rem 1.1rem 1.1rem 1.1rem;
+    border-top: 4px solid {BLUE};
+    box-shadow: 0 6px 18px rgba(16, 25, 54, 0.07);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+}}
+.gauge-wrap {{
+    position: relative;
+    width: 100%;
+    max-width: 260px;
+    margin: 0.4rem auto 0 auto;
+}}
+.gauge-wrap svg {{ width: 100%; display: block; }}
+.gauge-needle {{
+    position: absolute;
+    left: 50%;
+    bottom: 9%;
+    height: 56%;
+    transform-origin: 50% 100%;
+    filter: drop-shadow(0 2px 5px rgba(16, 25, 54, 0.35));
+    transition: transform 0.6s ease;
+}}
+.gauge-value {{
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: {INK};
+    margin-top: 0.5rem;
+    line-height: 1.1;
+}}
+.gauge-sub {{
+    font-size: 0.78rem;
+    color: {DIM};
+    text-align: center;
+    margin-top: 0.2rem;
+}}
+.gauge-sub b {{ color: {BLUE}; }}
+
 footer {{ visibility: hidden; }}
 </style>
 """,
@@ -466,7 +509,57 @@ cards = "".join(
     f'<div class="kpi-value">{value}</div><div class="kpi-foot">{foot}</div></div>'
     for label, value, foot, cls in kpis
 )
-st.markdown(f'<div class="kpi-grid">{cards}</div>', unsafe_allow_html=True)
+
+NEEDLE_IMG = APP_DIR / "s26fe_needle.png"
+
+
+def render_gauge(spent: float, budget: float) -> str:
+    """Speedometer of delivered spend vs total budget; the S26 Fe is the needle."""
+    pct = (spent / budget * 100) if budget else 0.0
+    frac = min(max(pct / 100, 0.0), 1.0)
+    angle = -90 + frac * 180            # -90° = 0%, +90° = 100%
+    arc_len = 3.14159 * 80              # semicircle radius 80
+    dash = frac * arc_len
+    needle = (
+        f'<img class="gauge-needle" alt="Samsung S26 Fe needle" '
+        f'style="transform: translateX(-50%) rotate({angle:.1f}deg);" '
+        f'src="data:image/png;base64,{img_b64(NEEDLE_IMG)}"/>'
+        if NEEDLE_IMG.exists() else ""
+    )
+    return f"""
+<div class="gauge-card">
+  <div class="kpi-label">Budget speedometer</div>
+  <div class="gauge-wrap">
+    <svg viewBox="0 0 200 112">
+      <defs>
+        <linearGradient id="gfill" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="{ACCENT}"/>
+          <stop offset="100%" stop-color="{BLUE}"/>
+        </linearGradient>
+      </defs>
+      <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#E3E8F5"
+            stroke-width="13" stroke-linecap="round"/>
+      <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#gfill)"
+            stroke-width="13" stroke-linecap="round"
+            stroke-dasharray="{dash:.1f} {arc_len:.1f}"/>
+      <text x="16" y="112" font-size="9" font-weight="bold" fill="{BLUE}">0%</text>
+      <text x="92" y="14" font-size="9" font-weight="bold" fill="{BLUE}">50%</text>
+      <text x="166" y="112" font-size="9" font-weight="bold" fill="{BLUE}">100%</text>
+      <circle cx="100" cy="100" r="5" fill="{BLUE}"/>
+    </svg>
+    {needle}
+  </div>
+  <div class="gauge-value">{fmt_money(spent)}</div>
+  <div class="gauge-sub"><b>{pct:.1f}%</b> of the {fmt_money(budget)} total budget spent</div>
+</div>
+"""
+
+
+col_kpi, col_gauge = st.columns([2.4, 1], gap="medium")
+with col_kpi:
+    st.markdown(f'<div class="kpi-grid">{cards}</div>', unsafe_allow_html=True)
+with col_gauge:
+    st.markdown(render_gauge(tot_spend, tot_budget), unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Highlights & take-aways (rendered at the bottom of the page)
