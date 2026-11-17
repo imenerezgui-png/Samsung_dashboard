@@ -220,6 +220,18 @@ div[data-testid="stDataFrame"] {{
     padding: 0.4rem;
     box-shadow: 0 6px 18px rgba(16, 25, 54, 0.07);
 }}
+div[data-testid="stPlotlyChart"] {{
+    background: {CARD};
+    border-radius: 16px;
+    padding: 0.8rem 0.6rem 0.4rem 0.6rem;
+    box-shadow: 0 6px 18px rgba(16, 25, 54, 0.07);
+    overflow: hidden;
+}}
+div[data-testid="stPlotlyChart"] .js-plotly-plot,
+div[data-testid="stPlotlyChart"] .plotly,
+div[data-testid="stPlotlyChart"] svg {{
+    border-radius: 12px;
+}}
 footer {{ visibility: hidden; }}
 </style>
 """,
@@ -457,11 +469,8 @@ cards = "".join(
 st.markdown(f'<div class="kpi-grid">{cards}</div>', unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Highlights & take-aways
+# Highlights & take-aways (rendered at the bottom of the page)
 # ─────────────────────────────────────────────────────────────────────────────
-st.markdown('<div class="section-title">Highlights &amp; take-aways</div>', unsafe_allow_html=True)
-
-
 def build_insights(d: pd.DataFrame) -> list[tuple[str, str, str, str]]:
     out: list[tuple[str, str, str, str]] = []
 
@@ -548,13 +557,6 @@ def build_insights(d: pd.DataFrame) -> list[tuple[str, str, str, str]]:
     return out[:6]
 
 
-insights_html = "".join(
-    f'<div class="insight-card {cls}"><span class="insight-tag">{tag}</span>'
-    f'<div class="insight-title">{title}</div><div class="insight-body">{body}</div></div>'
-    for cls, tag, title, body in build_insights(flt)
-)
-st.markdown(f'<div class="insight-grid">{insights_html}</div>', unsafe_allow_html=True)
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Charts
 # ─────────────────────────────────────────────────────────────────────────────
@@ -563,8 +565,17 @@ CHART_LAYOUT = dict(
     plot_bgcolor="rgba(0,0,0,0)",
     font=dict(family="IBM Plex Sans, Segoe UI, sans-serif", color=INK),
     margin=dict(l=10, r=10, t=42, b=10),
-    legend=dict(orientation="h", y=-0.18),
+    legend=dict(orientation="h", y=-0.18, font=dict(color=BLUE, weight="bold")),
 )
+
+AXIS_FONT = dict(color=BLUE, weight="bold")
+
+
+def style_axes(fig: go.Figure) -> go.Figure:
+    """Blue, bold tick labels and axis titles on every axis."""
+    fig.update_xaxes(tickfont=AXIS_FONT, title_font=AXIS_FONT)
+    fig.update_yaxes(tickfont=AXIS_FONT, title_font=AXIS_FONT)
+    return fig
 
 col_a, col_b = st.columns([1, 1])
 
@@ -588,7 +599,7 @@ with col_b:
     fig.add_bar(x=by_obj["Objective"], y=by_obj["Budget"], name="Planned budget", marker_color=BLUE)
     fig.add_bar(x=by_obj["Objective"], y=by_obj["Spend"], name="Delivered spend", marker_color=ACCENT)
     fig.update_layout(**CHART_LAYOUT, barmode="group", height=330, yaxis_title="USD")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(style_axes(fig), use_container_width=True)
 
 st.markdown('<div class="section-title">Campaign delivery — impressions &amp; engagement rate</div>', unsafe_allow_html=True)
 top = flt.sort_values("Impressions", ascending=False)
@@ -604,26 +615,51 @@ fig.add_scatter(
     yaxis="y2", mode="lines+markers", line=dict(color=WARN, width=2),
 )
 fig.update_layout(
-    **CHART_LAYOUT, height=430,
+    **CHART_LAYOUT, height=460,
     yaxis=dict(title="Impressions"),
-    yaxis2=dict(title="Engagement rate %", overlaying="y", side="right", showgrid=False),
-    xaxis=dict(tickangle=-38, tickfont=dict(size=10)),
+    yaxis2=dict(title="Engagement rate %", overlaying="y", side="right", showgrid=False,
+                tickfont=AXIS_FONT, title_font=AXIS_FONT),
+    xaxis=dict(tickangle=-38, tickfont=dict(size=10, color=BLUE, weight="bold")),
 )
-st.plotly_chart(fig, use_container_width=True)
+# Long angled labels: park the legend above the plot instead of below it.
+fig.update_layout(legend=dict(orientation="h", y=1.12, x=0, font=dict(color=BLUE, weight="bold")))
+st.plotly_chart(style_axes(fig), use_container_width=True)
 
 col_c, col_d = st.columns([1, 1])
 
 with col_c:
-    st.markdown('<div class="section-title">Cost efficiency (CPM vs CPC)</div>', unsafe_allow_html=True)
-    eff = flt[(flt["CPC (all) (USD)"] > 0)]
-    fig = px.scatter(
-        eff, x="CPM (cost per 1,000 impressions) (USD)", y="CPC (all) (USD)",
-        size="Spend (USD)", color="Country", hover_name="Campaign",
-        color_discrete_map={"Tunisia": BLUE, "Libya": ACCENT, "Other": SKY},
-        size_max=42,
+    st.markdown('<div class="section-title">Cost per 1,000 impressions — cheapest first</div>', unsafe_allow_html=True)
+    cpm_col = "CPM (cost per 1,000 impressions) (USD)"
+    eff = flt[flt[cpm_col] > 0].sort_values(cpm_col, ascending=True).head(12)
+    def _short(s: str) -> str:
+        return s if len(s) <= 34 else s[:20].rstrip() + "…" + s[-12:]
+
+    short, seen = [], {}
+    for name in eff["Campaign"]:
+        lbl = _short(name)
+        n = seen.get(lbl, 0)
+        seen[lbl] = n + 1
+        short.append(lbl + "\u200b" * n)  # keep duplicate labels as distinct categories
+    fig = go.Figure()
+    fig.add_bar(
+        x=eff[cpm_col], y=short, orientation="h",
+        marker_color=[BLUE if c == "Tunisia" else ACCENT for c in eff["Country"]],
+        text=[f"${v:.3f}" for v in eff[cpm_col]],
+        textposition="outside",
+        textfont=dict(color=BLUE, weight="bold"),
+        customdata=eff[["Country", "Impressions", "Campaign"]],
+        hovertemplate="<b>%{customdata[2]}</b><br>%{customdata[0]}<br>CPM: $%{x:.3f}<br>Impressions: %{customdata[1]:,.0f}<extra></extra>",
     )
-    fig.update_layout(**CHART_LAYOUT, height=360, xaxis_title="CPM (USD)", yaxis_title="CPC (USD)")
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(
+        **CHART_LAYOUT, height=380, showlegend=False,
+        xaxis_title="CPM (USD) — lower is better",
+        yaxis=dict(autorange="reversed"),
+        xaxis=dict(range=[0, eff[cpm_col].max() * 1.3], tickangle=0),
+    )
+    fig.update_yaxes(tickfont=dict(size=10, color=BLUE, weight="bold"))
+    fig.update_layout(margin=dict(r=52))
+    fig.update_traces(cliponaxis=False)
+    st.plotly_chart(style_axes(fig), use_container_width=True)
 
 with col_d:
     st.markdown('<div class="section-title">Engagement mix</div>', unsafe_allow_html=True)
@@ -634,7 +670,7 @@ with col_d:
         color_discrete_sequence=PALETTE,
     )
     fig.update_layout(**CHART_LAYOUT, height=360, showlegend=False, xaxis_title="Total", yaxis_title="")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(style_axes(fig), use_container_width=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Detail table
@@ -658,5 +694,13 @@ st.dataframe(
         "CPC (all) (USD)": st.column_config.NumberColumn("CPC (USD)", format="$%.4f"),
     },
 )
+
+st.markdown('<div class="section-title">Highlights &amp; take-aways</div>', unsafe_allow_html=True)
+insights_html = "".join(
+    f'<div class="insight-card {cls}"><span class="insight-tag">{tag}</span>'
+    f'<div class="insight-title">{title}</div><div class="insight-body">{body}</div></div>'
+    for cls, tag, title, body in build_insights(flt)
+)
+st.markdown(f'<div class="insight-grid">{insights_html}</div>', unsafe_allow_html=True)
 
 st.caption("Samsung Campaigns Dashboard · data: Meta export Aug 1 – Nov 5, 2026 · crafted by Ykone.")
