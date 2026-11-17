@@ -80,13 +80,22 @@ section[data-testid="stSidebar"] span[data-baseweb="tag"] {{
     border-radius: 18px;
     padding: 1.6rem 2rem;
     margin-bottom: 1.2rem;
+    overflow: hidden;
+    box-shadow: 0 14px 34px rgba(20, 40, 160, 0.28);
+}}
+.hero-wordmark {{
+    display: block;
+    width: 100%;
+    height: auto;
+    margin-bottom: 1.1rem;
+    filter: drop-shadow(0 3px 8px rgba(5, 10, 40, 0.35));
+}}
+.hero-row {{
     display: flex;
     flex-wrap: wrap;
     gap: 1rem;
     align-items: center;
     justify-content: space-between;
-    overflow: hidden;
-    box-shadow: 0 14px 34px rgba(20, 40, 160, 0.28);
 }}
 .hero-title {{
     color: #FFFFFF;
@@ -106,9 +115,6 @@ section[data-testid="stSidebar"] span[data-baseweb="tag"] {{
     align-items: center;
     gap: 1.1rem;
     flex-shrink: 0;
-}}
-.hero-logos img.samsung {{
-    height: 46px; background: #FFFFFF; border-radius: 10px; padding: 4px 12px;
 }}
 .hero-logos img.ykone {{
     height: 46px; border-radius: 10px; border: 2px solid rgba(255,255,255,0.65);
@@ -417,21 +423,30 @@ if account_totals is not None:
     end = pd.to_datetime(account_totals["Reporting ends"]).strftime("%b %d, %Y")
     period = f"{start} → {end}"
 
+WORDMARK = APP_DIR / "samsung_wordmark.png"
+
+wordmark_html = ""
+if WORDMARK.exists():
+    wordmark_html = (
+        f'<img class="hero-wordmark" alt="SAMSUNG" '
+        f'src="data:image/png;base64,{img_b64(WORDMARK)}"/>'
+    )
+
 logos_html = ""
-if SAMSUNG_LOGO.exists():
-    logos_html += f'<img class="samsung" src="data:image/png;base64,{img_b64(SAMSUNG_LOGO)}" alt="Samsung"/>'
 if YKONE_LOGO.exists():
-    logos_html += '<span class="hero-x">×</span>'
-    logos_html += f'<img class="ykone" src="data:image/jpeg;base64,{img_b64(YKONE_LOGO)}" alt="Ykone"/>'
+    logos_html = f'<img class="ykone" src="data:image/jpeg;base64,{img_b64(YKONE_LOGO)}" alt="Ykone"/>'
 
 st.markdown(
     f"""
 <div class="hero">
-  <div>
-    <p class="hero-title">Samsung Campaigns Dashboard</p>
-    <div class="hero-sub">Paid social performance · {period} · Tunisia &amp; Libya · by Ykone</div>
+  {wordmark_html}
+  <div class="hero-row">
+    <div>
+      <p class="hero-title">Samsung Campaigns Dashboard</p>
+      <div class="hero-sub">Paid social performance · {period} · Tunisia &amp; Libya · by Ykone</div>
+    </div>
+    <div class="hero-logos">{logos_html}</div>
   </div>
-  <div class="hero-logos">{logos_html}</div>
 </div>
 """,
     unsafe_allow_html=True,
